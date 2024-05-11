@@ -1,0 +1,142 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc-app-mysql
+  labels:
+    app: app-svc-mysql
+spec:
+#Al usar type: ClusterIP, el servicio MySQL solo es accesible desde dentro
+# del clúster Kubernetes. Esto significa que otros pods dentro del clúster pueden 
+#comunicarse con el servicio MySQL utilizando la dirección IP del clúster
+  type: ClusterIP
+  selector:
+    proyecto: app-mysql
+  ports:
+    - protocol: TCP
+      port: 3306
+      targetPort: 3306
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-deployment
+  labels:
+    app: app-deploy-mysql
+spec:
+  selector:
+    matchLabels:
+      proyecto: app-mysql
+  replicas: 1
+  template:
+    metadata:
+      name: mysql
+      labels:
+        proyecto: app-mysql
+    spec:
+      containers:
+        - name: mysql
+          image: luisjulian/mysql-dockercompose:v1
+          ports:
+            - containerPort: 3306
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: "Julian321"
+            - name: MYSQL_DATABASE
+              value: "prestashop_db"
+            - name: MYSQL_USER
+              value: "prestashop_user"
+            - name: MYSQL_PASSWORD
+              value: "prestashop_password"
+          volumeMounts:
+            - name: persistent-storage-mysql
+              mountPath: /var/lib/mysql
+      volumes:
+        - name: persistent-storage-mysql
+          persistentVolumeClaim:
+               claimName: pvc-mysql
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-mysql
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: svc-app-prestashop
+  labels:
+    app: app-svc-prestashop
+
+spec:
+#PrestaShop es una aplicación web que necesita ser accesible
+# desde el exterior del clúster, ya que los usuarios accederán a ella a través de un navegador web.
+  type: LoadBalancer
+  selector:
+    proyecto: app-prestashop
+
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: prestashop-deployment
+  labels:
+    app: app-deploy-prestashop
+
+spec:
+  selector:
+    matchLabels:
+      proyecto: app-prestashop
+  replicas: 1
+
+  template:
+    metadata:
+      name: prestashop
+      labels:
+        proyecto: app-prestashop
+
+    spec:
+      containers:
+        - name: prestashop
+          image: luisjulian/prestashopdockercompose:v1
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: persistent-storage-prestashop
+              mountPath: /bitnami/prestashop
+      volumes:
+        - name: persistent-storage-prestashop
+          persistentVolumeClaim:
+               claimName: pvc-prestashop
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+
+metadata:
+  name: pvc-prestashop
+
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests: 
+      storage: 1Gi
+
+      
